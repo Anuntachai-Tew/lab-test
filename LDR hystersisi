@@ -1,0 +1,38 @@
+#define LDR 36
+#define LED_PIN 2
+
+int LDR_Value = 0;
+
+// Hysteresis Thresholds
+int Threshold_ON  = 1800;   // มืดกว่านี้ → เปิด LED
+int Threshold_OFF = 2200;   // สว่างกว่านี้ → ปิด LED
+// guard band = 2200 - 1800 = 400
+
+bool ledIsOn = false;
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(LED_PIN, OUTPUT);
+}
+
+void loop() {
+  LDR_Value = analogRead(LDR);
+
+  // Hysteresis control
+  if (!ledIsOn && LDR_Value < Threshold_ON) {
+    ledIsOn = true;        // เปิดไฟ
+  } 
+  else if (ledIsOn && LDR_Value > Threshold_OFF) {
+    ledIsOn = false;       // ปิดไฟ
+  }
+
+  digitalWrite(LED_PIN, ledIsOn ? HIGH : LOW);
+
+  // สำหรับกราฟใน Serial Plotter
+  Serial.print("LDR:");        Serial.print(LDR_Value);
+  Serial.print("  Th_ON:");    Serial.print(Threshold_ON);
+  Serial.print("  Th_OFF:");   Serial.print(Threshold_OFF);
+  Serial.print("  LED:");      Serial.println(ledIsOn ? 100 : 0);
+
+  delay(100);
+}
