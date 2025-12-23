@@ -1,0 +1,56 @@
+// ขา L293D
+int IN1 = 25;
+int IN2 = 26;
+int EN1 = 27;
+
+// ขา LED แสดงทิศหมุน
+int LED_CW = 14;   // ตามเข็ม
+int LED_CCW = 15;  // ทวนเข็ม
+
+void setup() {
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(EN1, OUTPUT);
+
+  pinMode(LED_CW, OUTPUT);
+  pinMode(LED_CCW, OUTPUT);
+
+  // ตั้ง PWM
+  ledcAttachPin(EN1, 0);      // ช่อง PWM 0
+  ledcSetup(0, 1000, 8);      // PWM: 1kHz, 8-bit
+}
+
+// ฟังก์ชันหมุน
+void motorCW() {   // ตามเข็ม
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  ledcWrite(0, 255);      // มอเตอร์เต็มกำลัง
+
+  digitalWrite(LED_CW, HIGH);
+  digitalWrite(LED_CCW, LOW);
+}
+
+void motorCCW() {  // ทวนเข็ม
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  ledcWrite(0, 255);
+
+  digitalWrite(LED_CW, LOW);
+  digitalWrite(LED_CCW, HIGH);
+}
+
+void motorStop() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  ledcWrite(0, 0);
+}
+
+void loop() {
+  // หมุนตามเข็ม 5 วินาที
+  motorCW();
+  delay(5000);
+
+  // หมุนทวนเข็ม 5 วินาที
+  motorCCW();
+  delay(5000);
+}
