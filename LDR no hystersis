@@ -1,0 +1,33 @@
+#define LDR 36        // GPIO36 (A1)
+#define LED_PIN 2     // LED (เลือกขาได้ตามต้องการ)
+
+int LDR_Value = 0;
+int Threshold = 2000;   // ค่าแสงที่ใช้ตัดสิน เปิด/ปิด LED
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(LED_PIN, OUTPUT);
+}
+
+void loop() {
+  LDR_Value = analogRead(LDR);
+
+  int ledState;
+
+  if (LDR_Value < Threshold) {
+    // มืด → เปิดไฟ
+    digitalWrite(LED_PIN, HIGH);
+    ledState = 100;  // สำหรับกราฟ
+  } else {
+    // สว่าง → ปิดไฟ
+    digitalWrite(LED_PIN, LOW);
+    ledState = 0;
+  }
+
+  // ส่งข้อมูลเพื่อทำกราฟใน Serial Plotter
+  Serial.print("LDR:"); Serial.print(LDR_Value);
+  Serial.print("  Threshold:"); Serial.print(Threshold);
+  Serial.print("  LED:"); Serial.println(ledState);
+
+  delay(100);
+}
