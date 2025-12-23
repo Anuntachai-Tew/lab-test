@@ -1,94 +1,135 @@
 #include <WiFi.h>
-#include <PubSubClient.h>
+#include <MQTT.h>
 
-/* ---------- PIN ---------- */
-#define MOTOR_PIN 26
-#define LDR_PIN   34
-#define BTN_PIN   25
+const char ssid[] = "@JumboPlusIoT";
+const char pass[] = "group";
+const char mqtt_broker[] = "test.mosquitto.org";
+const char mqtt_client_id[] = "esp32AI14";
+int MQTT_PORT = 1883;
 
-/* ---------- WIFI ---------- */
-const char* ssid = "YOUR_WIFI";
-const char* password = "YOUR_PASS";
+const char mqtt_status[] = "group14/test1/status"; //topic สำหรับดูสถานะ
+const char mqtt_mode[]   = "group14/test1/mode";
+const char mqtt_modestatus[]   = "group14/test1/modestatus"; //topic สำหรับดูโหมด
+const char mqtt_ldr[]    = "group14/test1/ldr"; //topic สำหรับดู LDR
+const char mqtt_motor[]    = "group14/test1/motor"; //topic สำหรับดู LDR
 
-/* ---------- MQTT ---------- */
-const char* mqtt_server = "broker.hivemq.com";
+#define LDR     32
+#define LED     23
+#define motor1  22
+// #define motor2  18
+#define BTN     19
 
-WiFiClient espClient;
-PubSubClient client(espClient);
+#define LDR_TH 700
 
-/* ---------- VARIABLE ---------- */
-bool autoMode = true;
-bool motorState = false;
+WiFiClient net;
+MQTTClient client;
 
-unsigned long lastBtnTime = 0;
+bool autoMode = true;      // เริ่ม Auto
+bool motorState = false; 
+bool autoStarted = false; // ใช้เช็คว่าเข้า Auto ใหม่หรือยัง
 
-/* ---------- FUNCTION ---------- */
-void controlMotor(bool state) {
-  digitalWrite(MOTOR_PIN, state);
-  motorState = state;
+bool btnLast = LOW;
+
+int ldr_value = 0;
+void messageReceived(String &topic, String &payload) 
+{ 
+  if (topic == mqtt_mode) { //ถ้า topic ที่ส่งมาเป็นโหมดให้ทำเช็คว่าเป็น auto รึเปล่า
+    autoMode = !autoMode;
+    autoStarted = false;
+    Serial.println("incoming: " + topic + " - " + payload);  
+  } 
+  if (topic == mqtt_motor && !autoMode) {  //ถ้า topic ที่ส่งมาเป็นสถานะ motor และไม่เป็นโหมด auto ให้เช็คว่าสั่งให้ motor ทำงานรึเปล่า
+    motorState = !motorState; 
+    Serial.println("incoming: " + topic + " - " + payload);  
+    } 
 }
 
-void callback(char* topic, byte* message, unsigned int length) {
-  String msg;
-  for (int i = 0; i < length; i++) msg += (char)message[i];
-
-  if (String(topic) == "iot/mode/set") {
-    if (msg == "AUTO") autoMode = true;
-    if (msg == "MANUAL") autoMode = false;
+void connect() {
+  Serial.print("checking wifi..."); 
+  while (WiFi.status() != WL_CONNECTED) 
+  {
+    Serial.print(".");  
+    delay(500);
+  }
+  Serial.print("\nconnecting..."); 
+  while (!client.connect(mqtt_client_id)) {
+    Serial.print(".");  
+    delay(500);
   }
 
-  if (String(topic) == "iot/motor/set" && !autoMode) {
-    if (msg == "ON") controlMotor(true);
-    if (msg == "OFF") controlMotor(false);
-  }
-}
-
-void reconnect() {
-  while (!client.connected()) {
-    if (client.connect("ESP32_LDR")) {
-      client.subscribe("iot/mode/set");
-      client.subscribe("iot/motor/set");
-    }
-  }
+  Serial.println("\nconnected!");   
+  client.subscribe(mqtt_mode);
+  client.subscribe(mqtt_motor);
+// client.subscribe(mqtt_ldr);
+// client.subscribe(mqtt_status);
+// client.subscribe(mqtt_modestatus);
 }
 
 void setup() {
-  pinMode(MOTOR_PIN, OUTPUT);
-  pinMode(BTN_PIN, INPUT_PULLUP);
+  Serial.begin(9600);
+  WiFi.begin(ssid, pass);
+  client.onMessage(messageReceived);
+  pinMode(motor1, OUTPUT);
+  // pinMode(motor2, OUTPUT);
+  pinMode(LED, OUTPUT);
+  pinMode(BTN, INPUT_PULLUP);
 
-  controlMotor(false); // เริ่มต้นหยุด
-
-  Serial.begin(115200);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) delay(500);
-
-  client.setServer(mqtt_server, 1883);
-  client.setCallback(callback);
+  client.begin(mqtt_broker, MQTT_PORT, net);
+  connect();
 }
 
 void loop() {
-  if (!client.connected()) reconnect();
   client.loop();
+  if (!client.connected()) connect();
 
-  /* ---------- BUTTON ---------- */
-  if (digitalRead(BTN_PIN) == LOW && millis() - lastBtnTime > 500) {
-    autoMode = !autoMode;
-    lastBtnTime = millis();
+  /* ===== ปุ่มกด ===== */
+  bool btnNow = digitalRead(BTN);
+
+  if (!btnNow && btnLast) {
+    autoMode = !autoMode; //กดปุ่มเปลี่ยนโหมด
+    autoStarted = false;   // ⭐ สำคัญ
   }
+  btnLast = btnNow;
+  /* ===== อ่าน LDR ===== */
+  ldr_value = map(analogRead(LDR),0,4095,0,1023);
 
-  /* ---------- LDR ---------- */
-  int ldrRaw = analogRead(LDR_PIN);
-  int ldrValue = map(ldrRaw, 0, 4095, 0, 1023);
-
+  /* ===== Auto Mode Logic ===== */
   if (autoMode) {
-    if (ldrValue > 700) controlMotor(true);
-    else controlMotor(false);
+    if (!autoStarted) {
+      motorState = true;     // เข้า Auto → มอเตอร์หมุนทันที
+      autoStarted = true;
+      
+    }
+    if (ldr_value > LDR_TH) {
+      motorState = true;    // หยุดเมื่อ LDR เกินค่า
+    }
+    else{
+      motorState = false; 
+    }
+  }
+  else{
+    if(autoStarted){
+      motorState = false;
+      autoStarted = false;   
+    }
   }
 
-  /* ---------- MQTT PUBLISH ---------- */
-  client.publish("iot/ldr", String(ldrValue).c_str());
-  client.publish("iot/motor/status", motorState ? "ทำงาน" : "หยุด");
-  client.publish("iot/mode/status", autoMode ? "Auto" : "Manual");
+  /* ===== ควบคุมมอเตอร์จริง ===== */
+  if (motorState) { //เช็คว่าmotorหมุนรึเปล่า 
+    digitalWrite(motor1, HIGH);
+    // digitalWrite(motor2, LOW);
+    digitalWrite(LED, HIGH);
+    client.publish(mqtt_status,"Working"); //ส่งข้อคว่ามว่าmotorทำงาน
+  } else {
+    digitalWrite(motor1, LOW);
+    // digitalWrite(motor2, LOW);
+    digitalWrite(LED, LOW);
+    client.publish(mqtt_status,"Stop");//ส่งข้อคว่ามว่าmotorหยุด
+  }
 
-  delay(500);
+  /* ===== MQTT แสดงผล ===== */
+  client.publish(mqtt_ldr, String(ldr_value)); //ส่งค่า LDR
+  client.publish(mqtt_modestatus, autoMode ? "Auto" : "Manual"); // ส่งสถานะโหมด
+
+  delay(200);
 }
