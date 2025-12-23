@@ -1,0 +1,94 @@
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+/* ---------- PIN ---------- */
+#define MOTOR_PIN 26
+#define LDR_PIN   34
+#define BTN_PIN   25
+
+/* ---------- WIFI ---------- */
+const char* ssid = "YOUR_WIFI";
+const char* password = "YOUR_PASS";
+
+/* ---------- MQTT ---------- */
+const char* mqtt_server = "broker.hivemq.com";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+/* ---------- VARIABLE ---------- */
+bool autoMode = true;
+bool motorState = false;
+
+unsigned long lastBtnTime = 0;
+
+/* ---------- FUNCTION ---------- */
+void controlMotor(bool state) {
+  digitalWrite(MOTOR_PIN, state);
+  motorState = state;
+}
+
+void callback(char* topic, byte* message, unsigned int length) {
+  String msg;
+  for (int i = 0; i < length; i++) msg += (char)message[i];
+
+  if (String(topic) == "iot/mode/set") {
+    if (msg == "AUTO") autoMode = true;
+    if (msg == "MANUAL") autoMode = false;
+  }
+
+  if (String(topic) == "iot/motor/set" && !autoMode) {
+    if (msg == "ON") controlMotor(true);
+    if (msg == "OFF") controlMotor(false);
+  }
+}
+
+void reconnect() {
+  while (!client.connected()) {
+    if (client.connect("ESP32_LDR")) {
+      client.subscribe("iot/mode/set");
+      client.subscribe("iot/motor/set");
+    }
+  }
+}
+
+void setup() {
+  pinMode(MOTOR_PIN, OUTPUT);
+  pinMode(BTN_PIN, INPUT_PULLUP);
+
+  controlMotor(false); // เริ่มต้นหยุด
+
+  Serial.begin(115200);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) delay(500);
+
+  client.setServer(mqtt_server, 1883);
+  client.setCallback(callback);
+}
+
+void loop() {
+  if (!client.connected()) reconnect();
+  client.loop();
+
+  /* ---------- BUTTON ---------- */
+  if (digitalRead(BTN_PIN) == LOW && millis() - lastBtnTime > 500) {
+    autoMode = !autoMode;
+    lastBtnTime = millis();
+  }
+
+  /* ---------- LDR ---------- */
+  int ldrRaw = analogRead(LDR_PIN);
+  int ldrValue = map(ldrRaw, 0, 4095, 0, 1023);
+
+  if (autoMode) {
+    if (ldrValue > 700) controlMotor(true);
+    else controlMotor(false);
+  }
+
+  /* ---------- MQTT PUBLISH ---------- */
+  client.publish("iot/ldr", String(ldrValue).c_str());
+  client.publish("iot/motor/status", motorState ? "ทำงาน" : "หยุด");
+  client.publish("iot/mode/status", autoMode ? "Auto" : "Manual");
+
+  delay(500);
+}
