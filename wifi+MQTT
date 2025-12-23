@@ -2,7 +2,7 @@
 #include <MQTT.h>
 
 const char ssid[] = "@JumboPlusIoT";
-const char pass[] = "group";
+const char pass[] = "pian1234";
 const char mqtt_broker[] = "test.mosquitto.org";
 const char mqtt_client_id[] = "esp32AI14";
 int MQTT_PORT = 1883;
