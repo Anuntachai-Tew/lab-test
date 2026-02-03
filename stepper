@@ -1,0 +1,62 @@
+// ESP32 + ULN2003 + 28BYJ-48
+// ตามเข็ม 5 วิ -> ทวนเข็ม 5 วิ -> วนซ้ำ
+
+#define IN1 16
+#define IN2 17
+#define IN3 18
+#define IN4 19
+
+int stepDelay = 3;   // หน่วงเวลา (ms)
+
+// Full-step sequence (ตามเข็ม)
+int stepCW[4][4] = {
+  {1, 0, 0, 0},
+  {0, 1, 0, 0},
+  {0, 0, 1, 0},
+  {0, 0, 0, 1}
+};
+
+// Full-step sequence (ทวนเข็ม)
+int stepCCW[4][4] = {
+  {0, 0, 0, 1},
+  {0, 0, 1, 0},
+  {0, 1, 0, 0},
+  {1, 0, 0, 0}
+};
+
+void setup() {
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+}
+
+// ฟังก์ชันหมุน
+void rotate(bool dir, unsigned long runTimeMs) {
+  unsigned long startTime = millis();
+
+  while (millis() - startTime < runTimeMs) {
+    for (int s = 0; s < 4; s++) {
+      if (dir) {
+        digitalWrite(IN1, stepCW[s][0]);
+        digitalWrite(IN2, stepCW[s][1]);
+        digitalWrite(IN3, stepCW[s][2]);
+        digitalWrite(IN4, stepCW[s][3]);
+      } else {
+        digitalWrite(IN1, stepCCW[s][0]);
+        digitalWrite(IN2, stepCCW[s][1]);
+        digitalWrite(IN3, stepCCW[s][2]);
+        digitalWrite(IN4, stepCCW[s][3]);
+      }
+      delay(stepDelay);
+    }
+  }
+}
+
+void loop() {
+  rotate(true, 5000);    // ตามเข็ม 5 วินาที
+  delay(1000);           // หยุด 1 วินาที
+
+  rotate(false, 5000);   // ทวนเข็ม 5 วินาที
+  delay(1000);           // หยุด 1 วินาที
+}
