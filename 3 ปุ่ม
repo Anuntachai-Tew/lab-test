@@ -1,0 +1,40 @@
+#define IN1 26
+#define IN2 27
+#define ENA 25
+#define BTN 14
+
+int state = 0;
+bool lastBtn = HIGH;
+
+void setup() {
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(ENA, OUTPUT);
+  pinMode(BTN, INPUT_PULLUP);
+
+  digitalWrite(ENA, HIGH);
+}
+
+void loop() {
+  bool btn = digitalRead(BTN);
+
+  if(lastBtn == HIGH && btn == LOW){
+    state++;
+    if(state > 2) state = 0;
+    delay(200);
+  }
+  lastBtn = btn;
+
+  if(state == 1){
+    digitalWrite(IN1, HIGH);
+    digitalWrite(IN2, LOW);
+  }
+  else if(state == 2){
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, HIGH);
+  }
+  else{
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, LOW);
+  }
+}
