@@ -1,0 +1,107 @@
+#include <WiFi.h>
+#include <MQTT.h>
+
+const char ssid[] = "@JumboPlusIoT";
+const char pass[] = "pian1234";
+const char mqtt_broker[] = "test.mosquitto.org";
+const char mqtt_client_id[] = "esp32Motor14";
+
+int MQTT_PORT = 1883;
+
+const char mqtt_motor_status[] = "group14/motor/status";
+const char mqtt_led_status[]   = "group14/led/status";
+
+#define IN1 26
+#define IN2 27
+#define LED 23
+
+#define BTN_LEFT  19
+#define BTN_RIGHT 18
+#define BTN_STOP  5
+
+WiFiClient net;
+MQTTClient client;
+
+int motorState = 0; //0 stop 1 left 2 right
+
+bool lastLeft=HIGH;
+bool lastRight=HIGH;
+bool lastStop=HIGH;
+
+void connect() {
+  while (WiFi.status() != WL_CONNECTED) delay(500);
+  while (!client.connect(mqtt_client_id)) delay(500);
+}
+
+void setMotor(){
+
+  if(motorState==1){
+    digitalWrite(IN1,HIGH);
+    digitalWrite(IN2,LOW);
+    digitalWrite(LED,HIGH);
+    client.publish(mqtt_motor_status,"LEFT");
+    client.publish(mqtt_led_status,"ON");
+  }
+  else if(motorState==2){
+    digitalWrite(IN1,LOW);
+    digitalWrite(IN2,HIGH);
+    digitalWrite(LED,HIGH);
+    client.publish(mqtt_motor_status,"RIGHT");
+    client.publish(mqtt_led_status,"ON");
+  }
+  else{
+    digitalWrite(IN1,LOW);
+    digitalWrite(IN2,LOW);
+    digitalWrite(LED,LOW);
+    client.publish(mqtt_motor_status,"STOP");
+    client.publish(mqtt_led_status,"OFF");
+  }
+}
+
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(IN1,OUTPUT);
+  pinMode(IN2,OUTPUT);
+  pinMode(LED,OUTPUT);
+
+  pinMode(BTN_LEFT,INPUT_PULLUP);
+  pinMode(BTN_RIGHT,INPUT_PULLUP);
+  pinMode(BTN_STOP,INPUT_PULLUP);
+
+  WiFi.begin(ssid, pass);
+
+  client.begin(mqtt_broker, MQTT_PORT, net);
+  connect();
+
+  setMotor();
+}
+
+void loop() {
+  client.loop();
+  if (!client.connected()) connect();
+
+  bool bLeft=digitalRead(BTN_LEFT);
+  bool bRight=digitalRead(BTN_RIGHT);
+  bool bStop=digitalRead(BTN_STOP);
+
+  if(lastLeft==HIGH && bLeft==LOW){
+    motorState=1;
+    setMotor();
+    delay(200);
+  }
+  if(lastRight==HIGH && bRight==LOW){
+    motorState=2;
+    setMotor();
+    delay(200);
+  }
+  if(lastStop==HIGH && bStop==LOW){
+    motorState=0;
+    setMotor();
+    delay(200);
+  }
+
+  lastLeft=bLeft;
+  lastRight=bRight;
+  lastStop=bStop;
+}
